@@ -35,6 +35,7 @@ msgid "Account Password"
 msgstr ""
 
 #. module: base_delivery_carrier_label
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__active
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__active
 msgid "Active"
 msgstr ""
@@ -78,6 +79,11 @@ msgid ""
 msgstr ""
 
 #. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "CTT Express"
+msgstr ""
+
+#. module: base_delivery_carrier_label
 #: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.manifest_wizard_form
 msgid "Cancel"
 msgstr ""
@@ -106,11 +112,15 @@ msgid "Checksum/SHA1"
 msgstr ""
 
 #. module: base_delivery_carrier_label
-#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier__code
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__code
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_template_option__code
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_stock_picking__carrier_code
 msgid "Code"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__color
+msgid "Color"
 msgstr ""
 
 #. module: base_delivery_carrier_label
@@ -153,7 +163,6 @@ msgid "Default format of the carrier's label you want to print"
 msgstr ""
 
 #. module: base_delivery_carrier_label
-#: model:ir.model.fields,help:base_delivery_carrier_label.field_delivery_carrier__code
 #: model:ir.model.fields,help:base_delivery_carrier_label.field_stock_picking__carrier_code
 msgid "Delivery Method Code (according to carrier)"
 msgstr ""
@@ -185,11 +194,9 @@ msgid "Delivery carrier template option"
 msgstr ""
 
 #. module: base_delivery_carrier_label
-#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier__description
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__description
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_template_option__description
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__description
-#: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.view_delivery_carrier_form
 msgid "Description"
 msgstr ""
 
@@ -268,7 +275,9 @@ msgstr "編號"
 
 #. module: base_delivery_carrier_label
 #: model:ir.model.fields,help:base_delivery_carrier_label.field_delivery_carrier_option__mandatory
-msgid "If checked, this option is necessarily applied to the delivery order"
+msgid ""
+"If checked, this option is necessarily applied to the delivery order. "
+"Mandatory options show up in orange in the option widget on the picking."
 msgstr ""
 
 #. module: base_delivery_carrier_label
@@ -351,7 +360,7 @@ msgid "Name"
 msgstr ""
 
 #. module: base_delivery_carrier_label
-#: code:addons/base_delivery_carrier_label/models/stock_picking.py:38
+#: code:addons/base_delivery_carrier_label/models/stock_picking.py:44
 #, python-format
 msgid "No label is configured for the selected delivery method."
 msgstr ""
@@ -371,6 +380,16 @@ msgstr ""
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_stock_picking__option_ids
 #: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.view_delivery_carrier_form
 msgid "Options"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: model:ir.model.fields,help:base_delivery_carrier_label.field_delivery_carrier_option__color
+msgid "Orange if the option is mandatory, otherwise no color"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "Paazl"
 msgstr ""
 
 #. module: base_delivery_carrier_label
@@ -397,6 +416,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__partner_id
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_template_option__partner_id
 msgid "Partner Carrier"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "Post logistics"
 msgstr ""
 
 #. module: base_delivery_carrier_label
@@ -445,6 +469,11 @@ msgid "Result"
 msgstr ""
 
 #. module: base_delivery_carrier_label
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_carrier_account__sequence
+msgid "Sequence"
+msgstr ""
+
+#. module: base_delivery_carrier_label
 #: model:ir.model,name:base_delivery_carrier_label.model_shipping_label
 msgid "Shipping Label"
 msgstr ""
@@ -455,7 +484,12 @@ msgid "Shipping Label 🚚"
 msgstr ""
 
 #. module: base_delivery_carrier_label
-#: code:addons/base_delivery_carrier_label/models/stock_picking.py:253
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_stock_picking__show_label_button
+msgid "Show Label Button"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: code:addons/base_delivery_carrier_label/models/stock_picking.py:281
 #, python-format
 msgid ""
 "Some labels already exist for the picking %s.\n"
@@ -525,6 +559,11 @@ msgid "Type"
 msgstr ""
 
 #. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "UPS"
+msgstr ""
+
+#. module: base_delivery_carrier_label
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__url
 msgid "Url"
 msgstr ""
@@ -554,7 +593,7 @@ msgid ""
 msgstr ""
 
 #. module: base_delivery_carrier_label
-#: code:addons/base_delivery_carrier_label/models/stock_picking.py:163
+#: code:addons/base_delivery_carrier_label/models/stock_picking.py:178
 #, python-format
 msgid ""
 "You should not remove a mandatory option.Please cancel the edit or add back "

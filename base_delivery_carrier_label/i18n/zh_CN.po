@@ -36,6 +36,7 @@ msgid "Account Password"
 msgstr "账户密码"
 
 #. module: base_delivery_carrier_label
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__active
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__active
 msgid "Active"
 msgstr "有效"
@@ -81,6 +82,11 @@ msgstr ""
 " 使用这种j交货方式"
 
 #. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "CTT Express"
+msgstr ""
+
+#. module: base_delivery_carrier_label
 #: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.manifest_wizard_form
 msgid "Cancel"
 msgstr "取消"
@@ -109,12 +115,16 @@ msgid "Checksum/SHA1"
 msgstr "校验码/SHA1"
 
 #. module: base_delivery_carrier_label
-#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier__code
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__code
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_template_option__code
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_stock_picking__carrier_code
 msgid "Code"
 msgstr "代码"
+
+#. module: base_delivery_carrier_label
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__color
+msgid "Color"
+msgstr ""
 
 #. module: base_delivery_carrier_label
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_carrier_account__company_id
@@ -156,7 +166,6 @@ msgid "Default format of the carrier's label you want to print"
 msgstr "要打印的承运商标签的默认格式"
 
 #. module: base_delivery_carrier_label
-#: model:ir.model.fields,help:base_delivery_carrier_label.field_delivery_carrier__code
 #: model:ir.model.fields,help:base_delivery_carrier_label.field_stock_picking__carrier_code
 msgid "Delivery Method Code (according to carrier)"
 msgstr "交货方式代码（根据承运商）"
@@ -188,11 +197,9 @@ msgid "Delivery carrier template option"
 msgstr "送货承运商模板选项"
 
 #. module: base_delivery_carrier_label
-#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier__description
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_option__description
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_template_option__description
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__description
-#: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.view_delivery_carrier_form
 msgid "Description"
 msgstr "说明"
 
@@ -271,8 +278,10 @@ msgstr "ID"
 
 #. module: base_delivery_carrier_label
 #: model:ir.model.fields,help:base_delivery_carrier_label.field_delivery_carrier_option__mandatory
-msgid "If checked, this option is necessarily applied to the delivery order"
-msgstr "如果选中，则此选项必须应用于交货订单"
+msgid ""
+"If checked, this option is necessarily applied to the delivery order. "
+"Mandatory options show up in orange in the option widget on the picking."
+msgstr ""
 
 #. module: base_delivery_carrier_label
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__index_content
@@ -354,7 +363,7 @@ msgid "Name"
 msgstr "名称"
 
 #. module: base_delivery_carrier_label
-#: code:addons/base_delivery_carrier_label/models/stock_picking.py:38
+#: code:addons/base_delivery_carrier_label/models/stock_picking.py:44
 #, python-format
 msgid "No label is configured for the selected delivery method."
 msgstr "没有为所选的交货方法配置标签。"
@@ -375,6 +384,16 @@ msgstr "选项"
 #: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.view_delivery_carrier_form
 msgid "Options"
 msgstr "选项"
+
+#. module: base_delivery_carrier_label
+#: model:ir.model.fields,help:base_delivery_carrier_label.field_delivery_carrier_option__color
+msgid "Orange if the option is mandatory, otherwise no color"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "Paazl"
+msgstr ""
 
 #. module: base_delivery_carrier_label
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__package_id
@@ -401,6 +420,11 @@ msgstr "包裹跟踪链接"
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_delivery_carrier_template_option__partner_id
 msgid "Partner Carrier"
 msgstr "合作伙伴承运商"
+
+#. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "Post logistics"
+msgstr ""
 
 #. module: base_delivery_carrier_label
 #: model:ir.model,name:base_delivery_carrier_label.model_stock_move_line
@@ -448,6 +472,11 @@ msgid "Result"
 msgstr "结果"
 
 #. module: base_delivery_carrier_label
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_carrier_account__sequence
+msgid "Sequence"
+msgstr ""
+
+#. module: base_delivery_carrier_label
 #: model:ir.model,name:base_delivery_carrier_label.model_shipping_label
 msgid "Shipping Label"
 msgstr "交货标签"
@@ -458,7 +487,12 @@ msgid "Shipping Label 🚚"
 msgstr "交货标签🚚"
 
 #. module: base_delivery_carrier_label
-#: code:addons/base_delivery_carrier_label/models/stock_picking.py:253
+#: model:ir.model.fields,field_description:base_delivery_carrier_label.field_stock_picking__show_label_button
+msgid "Show Label Button"
+msgstr ""
+
+#. module: base_delivery_carrier_label
+#: code:addons/base_delivery_carrier_label/models/stock_picking.py:281
 #, python-format
 msgid ""
 "Some labels already exist for the picking %s.\n"
@@ -530,6 +564,11 @@ msgid "Type"
 msgstr "类型"
 
 #. module: base_delivery_carrier_label
+#: selection:delivery.carrier,delivery_type:0
+msgid "UPS"
+msgstr ""
+
+#. module: base_delivery_carrier_label
 #: model:ir.model.fields,field_description:base_delivery_carrier_label.field_shipping_label__url
 msgid "Url"
 msgstr "Url"
@@ -559,7 +598,7 @@ msgid ""
 msgstr "您可以从计算机上传文件，也可以将互联网链接复制/粘贴到您的文件中。"
 
 #. module: base_delivery_carrier_label
-#: code:addons/base_delivery_carrier_label/models/stock_picking.py:163
+#: code:addons/base_delivery_carrier_label/models/stock_picking.py:178
 #, python-format
 msgid ""
 "You should not remove a mandatory option.Please cancel the edit or add back "
@@ -573,6 +612,9 @@ msgstr "您不应删除强制选项。请取消编辑或添加选项：%s。"
 #: model_terms:ir.ui.view,arch_db:base_delivery_carrier_label.delivery_carrier_template_option_view_tree
 msgid "delivery_carrier_option"
 msgstr "delivery_carrier_option"
+
+#~ msgid "If checked, this option is necessarily applied to the delivery order"
+#~ msgstr "如果选中，则此选项必须应用于交货订单"
 
 #~ msgid ""
 #~ "Name must match with one of the value of Provider field (delivery_type) "

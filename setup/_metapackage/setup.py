@@ -8,12 +8,23 @@ setuptools.setup(
     description="Meta package for oca-delivery-carrier Odoo addons",
     version=version,
     install_requires=[
+        'odoo12-addon-base_delivery_carrier_files',
         'odoo12-addon-base_delivery_carrier_label',
         'odoo12-addon-delivery_auto_refresh',
+        'odoo12-addon-delivery_carrier_info',
+        'odoo12-addon-delivery_carrier_label_batch',
         'odoo12-addon-delivery_carrier_label_default',
+        'odoo12-addon-delivery_carrier_label_paazl',
+        'odoo12-addon-delivery_carrier_label_postlogistics',
+        'odoo12-addon-delivery_carrier_label_ups',
         'odoo12-addon-delivery_carrier_partner',
+        'odoo12-addon-delivery_cttexpress',
         'odoo12-addon-delivery_free_fee_removal',
         'odoo12-addon-delivery_multi_destination',
+        'odoo12-addon-delivery_package_number',
+        'odoo12-addon-delivery_price_method',
+        'odoo12-addon-delivery_price_rule_untaxed',
+        'odoo12-addon-delivery_state',
         'odoo12-addon-partner_delivery_schedule',
         'odoo12-addon-partner_delivery_zone',
         'odoo12-addon-stock_picking_delivery_info_computation',
@@ -22,5 +33,6 @@ setuptools.setup(
     classifiers=[
         'Programming Language :: Python',
         'Framework :: Odoo',
+        'Framework :: Odoo :: 12.0',
     ]
 )
