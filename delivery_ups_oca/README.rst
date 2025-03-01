@@ -119,6 +119,10 @@ Contributors
 
   * Manuel Regidor
 
+* `Nitrokey <https://www.nitrokey.com>`_:
+
+  * Jan Suhr
+
 Maintainers
 ~~~~~~~~~~~
 

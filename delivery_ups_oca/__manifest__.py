@@ -3,8 +3,9 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 {
     "name": "Delivery UPS OCA",
-    "summary": "Integrate UPS webservice",
-    "version": "15.0.1.0.1",
+    "summary": "Integrate UPS webservice to register shippings, generate labels, get rates, "
+    "track shipments and more",
+    "version": "15.0.1.1.0",
     "development_status": "Beta",
     "category": "Delivery",
     "website": "https://github.com/OCA/delivery-carrier",
@@ -16,6 +17,7 @@
         "delivery_package_number",
         "delivery_price_method",
         "delivery_state",
+        "stock_picking_declared_value",
     ],
     "data": [
         "data/product_packaging_data.xml",

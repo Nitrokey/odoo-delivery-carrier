@@ -75,6 +75,9 @@ License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
                                 attrs="{'required': [('delivery_type', '=', 'ups'), ('ups_cash_on_delivery', '=', True)], 'invisible': [('ups_cash_on_delivery', '=', False)]}"
                             />
                         </group>
+                        <group string="Insurance">
+                            <field name="declared_amount_percentage" />
+                        </group>
                     </group>
                 </page>
             </xpath>
