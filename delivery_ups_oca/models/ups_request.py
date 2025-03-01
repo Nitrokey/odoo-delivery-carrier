@@ -180,7 +180,7 @@ class UpsRequest(object):
             # Ensure at least one package is created
             num_packages = max(1, picking.number_of_packages)
             for i in range(0, num_packages):
-                package_item = package_info
+                package_item = package_info.copy()
                 package_name = "%s (%s)" % (picking.name, i + 1)
                 package_item["Description"] = package_name
                 package_item["NumOfPieces"] = "1"
