@@ -5,7 +5,7 @@
     "name": "Delivery UPS OCA",
     "summary": "Integrate UPS webservice to register shippings, generate labels, get rates, "
     "track shipments and more",
-    "version": "15.0.1.1.0",
+    "version": "15.0.1.2.0",
     "development_status": "Beta",
     "category": "Delivery",
     "website": "https://github.com/OCA/delivery-carrier",
@@ -20,6 +20,7 @@
         "stock_picking_declared_value",
     ],
     "data": [
+        "security/ir.model.access.csv",
         "data/product_packaging_data.xml",
         "views/delivery_carrier_view.xml",
         "views/stock_picking_view.xml",
