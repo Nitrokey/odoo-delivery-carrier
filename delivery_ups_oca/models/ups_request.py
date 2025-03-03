@@ -196,6 +196,18 @@ class UpsRequest(object):
 
     def _partner_to_shipping_data(self, partner, **kwargs):
         """Return a dict describing a partner for the shipping request"""
+        address_dict = dict(
+            AddressLine=[partner.street, partner.street2 or ""],
+            City=partner.city,
+            StateProvinceCode=partner.state_id.code,
+            PostalCode=partner.zip,
+            CountryCode=partner.country_id.code,
+        )
+
+        # Add ResidentialAddressIndicator if it's a residential address
+        if partner._is_residential_address():
+            address_dict["ResidentialAddressIndicator"] = ""
+
         return dict(
             **kwargs,
             Name=(partner.parent_id or partner).name,
@@ -203,13 +215,7 @@ class UpsRequest(object):
             TaxIdentificationNumber=partner.vat,
             Phone=dict(Number=partner.phone or partner.mobile),
             EMailAddress=partner.email,
-            Address=dict(
-                AddressLine=[partner.street, partner.street2 or ""],
-                City=partner.city,
-                StateProvinceCode=partner.state_id.code,
-                PostalCode=partner.zip,
-                CountryCode=partner.country_id.code,
-            ),
+            Address=address_dict,
         )
 
     def _label_data(self):
@@ -250,6 +256,7 @@ class UpsRequest(object):
 
     def _prepare_create_shipping(self, picking):
         """Return a dict that can be passed to the shipping endpoint of the UPS API"""
+
         if self.use_packages_from_picking and picking.package_ids:
             # model: stock.quant.package
             packages = []
@@ -325,6 +332,7 @@ class UpsRequest(object):
                 "LabelSpecification": self._label_data(),
             }
         }
+
         # Add ShipmentServiceOptions if needed
         shipment_service_options = {}
 
@@ -403,6 +411,7 @@ class UpsRequest(object):
                         "datas": label["ShippingLabel"]["GraphicImage"],
                     }
                 )
+
         return {
             "price": res["ShipmentCharges"]["TotalCharges"],
             "ShipmentIdentificationNumber": res["ShipmentIdentificationNumber"],
