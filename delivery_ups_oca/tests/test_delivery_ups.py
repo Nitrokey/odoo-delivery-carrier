@@ -7,6 +7,7 @@ import base64
 from unittest import mock
 
 from odoo.tests import Form, common
+from ..models.ups_request import UpsRequest
 
 _module_ns = "odoo.addons.delivery_ups_oca"
 _provider_class = _module_ns + ".models.ups_request.UpsRequest"
@@ -169,3 +170,37 @@ class TestDeliveryUps(TestDeliveryUpsBase):
                 self.picking.cancel_shipment()
                 self.assertFalse(self.picking.carrier_tracking_ref)
                 self.assertEqual(self.picking.delivery_state, "canceled_shipment")
+
+    def test_partner_to_shipping_data_without_phone(self):
+        """Test that phone field is omitted when partner has no phone number"""
+
+        ups_request = UpsRequest(self.carrier)
+
+        # Test partner with phone number - should include Phone field
+        shipping_data_with_phone = ups_request._partner_to_shipping_data(
+            self.partner
+        )
+        self.assertIn("Phone", shipping_data_with_phone)
+        self.assertEqual(
+            shipping_data_with_phone["Phone"]["Number"], self.partner.phone
+        )
+
+        # Test partner without phone number - should omit Phone field
+        self.partner.write({"phone": None})
+        shipping_data_no_phone = ups_request._partner_to_shipping_data(
+            self.partner
+        )
+        self.assertNotIn("Phone", shipping_data_no_phone)
+
+        # Test partner without phone number and with mobile number
+        self.partner.write({"phone": None, "mobile": 123456})
+        shipping_data_no_phone = ups_request._partner_to_shipping_data(
+            self.partner
+        )
+        self.assertIn("Phone", shipping_data_no_phone)
+
+        # Verify other fields are still present
+        self.assertIn("Name", shipping_data_no_phone)
+        self.assertIn("AttentionName", shipping_data_no_phone)
+        self.assertIn("EMailAddress", shipping_data_no_phone)
+        self.assertIn("Address", shipping_data_no_phone)
