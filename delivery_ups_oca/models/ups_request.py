@@ -31,6 +31,7 @@ class UpsRequest(object):
         self.client_secret = self.carrier.ups_client_secret
         self.token = self.carrier.ups_token
         self.token_expiration_date = self.carrier.ups_token_expiration_date
+        self.negotiated_rates = self.carrier.ups_negotiated_rates
         self.url = "https://wwwcie.ups.com"
         if self.carrier.prod_environment:
             self.url = "https://onlinetools.ups.com"
@@ -260,12 +261,12 @@ class UpsRequest(object):
 
         return package_item
 
-    def _prepare_create_shipping(self, picking):
-        """Return a dict that can be passed to the shipping endpoint of the UPS API"""
+    def _prepare_packages_from_picking(self, picking):
+        """Prepare packages data from picking packages"""
+        packages = []
 
         if self.use_packages_from_picking and picking.package_ids:
-            # model: stock.quant.package
-            packages = []
+            # Use actual packages from the picking
             for package in picking.package_ids:
                 package_item = self._quant_package_data_from_picking(
                     package, picking, True
@@ -280,20 +281,22 @@ class UpsRequest(object):
 
                 packages.append(package_item)
         else:
-            # model: stock.package.type
-            packages = []
+            # Create packages based on default packaging
             package_info = self._quant_package_data_from_picking(
                 self.default_packaging_id, picking, False
             )
-            package_weight = 0
+
+            # Calculate package weight
             if picking.number_of_packages > 0:
                 package_weight = round(
                     (picking.shipping_weight / picking.number_of_packages), 2
                 )
             else:
                 package_weight = picking.shipping_weight
+
             # Ensure at least one package is created
             num_packages = max(1, picking.number_of_packages)
+
             for i in range(0, num_packages):
                 package_item = package_info.copy()
                 package_name = "%s (%s)" % (picking.name, i + 1)
@@ -309,37 +312,11 @@ class UpsRequest(object):
                 )
 
                 packages.append(package_item)
-        vals = {
-            "ShipmentRequest": {
-                "Shipment": {
-                    "Description": picking.name,
-                    "Shipper": self._partner_to_shipping_data(
-                        partner=picking.company_id.partner_id,
-                        ShipperNumber=self.shipper_number,
-                    ),
-                    "ShipTo": self._partner_to_shipping_data(picking.partner_id),
-                    "ShipFrom": self._partner_to_shipping_data(
-                        picking.picking_type_id.warehouse_id.partner_id
-                        or picking.company_id.partner_id
-                    ),
-                    "PaymentInformation": {
-                        "ShipmentCharge": {
-                            "Type": "01",
-                            "BillShipper": {
-                                # we ignore the alternatives paying per credit card or
-                                # paypal for now
-                                "AccountNumber": self.shipper_number,
-                            },
-                        }
-                    },
-                    "Service": {"Code": self.service_code},
-                    "Package": packages,
-                },
-                "LabelSpecification": self._label_data(),
-            }
-        }
 
-        # Add ShipmentServiceOptions if needed
+        return packages
+
+    def _prepare_shipment_service_options(self, picking):
+        """Prepare shipment service options including COD and paperless invoice"""
         shipment_service_options = {}
 
         # Add COD if enabled
@@ -373,11 +350,57 @@ class UpsRequest(object):
                     "UserCreatedForm": {"DocumentID": picking.document_id},
                 }
 
-        # Add ShipmentServiceOptions to the request if not empty
+        return shipment_service_options
+
+    def _prepare_create_shipping(self, picking):
+        """Return a dict that can be passed to the shipping endpoint of the UPS API"""
+        # Prepare packages
+        packages = self._prepare_packages_from_picking(picking)
+
+        # Build the base request structure
+        vals = {
+            "ShipmentRequest": {
+                "Shipment": {
+                    "Description": picking.name,
+                    "Shipper": self._partner_to_shipping_data(
+                        partner=picking.company_id.partner_id,
+                        ShipperNumber=self.shipper_number,
+                    ),
+                    "ShipTo": self._partner_to_shipping_data(picking.partner_id),
+                    "ShipFrom": self._partner_to_shipping_data(
+                        picking.picking_type_id.warehouse_id.partner_id
+                        or picking.company_id.partner_id
+                    ),
+                    "PaymentInformation": {
+                        "ShipmentCharge": {
+                            "Type": "01",
+                            "BillShipper": {
+                                # we ignore the alternatives paying per credit card or
+                                # paypal for now
+                                "AccountNumber": self.shipper_number,
+                            },
+                        }
+                    },
+                    "Service": {"Code": self.service_code},
+                    "Package": packages,
+                },
+                "LabelSpecification": self._label_data(),
+            }
+        }
+
+        # Add negotiated rates if enabled
+        if self.negotiated_rates:
+            vals["ShipmentRequest"]["Shipment"]["ShipmentRatingOptions"] = {
+                "NegotiatedRatesIndicator": "ABR"
+            }
+
+        # Add shipment service options (COD, paperless invoice)
+        shipment_service_options = self._prepare_shipment_service_options(picking)
         if shipment_service_options:
             vals["ShipmentRequest"]["Shipment"][
                 "ShipmentServiceOptions"
             ] = shipment_service_options
+
         return vals
 
     def _send_shipping(self, picking):
@@ -417,9 +440,14 @@ class UpsRequest(object):
                         "datas": label["ShippingLabel"]["GraphicImage"],
                     }
                 )
+        # Use negotiated rates if available and enabled
+        if self.negotiated_rates and "NegotiatedRates" in res:
+            price = res["NegotiatedRates"]["TotalCharge"]
+        else:
+            price = res["ShipmentCharges"]["TotalCharges"]
 
         return {
-            "price": res["ShipmentCharges"]["TotalCharges"],
+            "price": price,
             "ShipmentIdentificationNumber": res["ShipmentIdentificationNumber"],
             "labels": labels,
         }
@@ -446,7 +474,7 @@ class UpsRequest(object):
 
     def _prepare_rate_shipment(self, order):
         packages = [self._quant_package_data_from_order(order)]
-        return {
+        rate_request = {
             "RateRequest": {
                 "Shipment": {
                     "Shipper": self._partner_to_shipping_data(
@@ -463,6 +491,14 @@ class UpsRequest(object):
             }
         }
 
+        # Add negotiated rates if enabled
+        if self.negotiated_rates:
+            rate_request["RateRequest"]["Shipment"]["ShipmentRatingOptions"] = {
+                "NegotiatedRatesIndicator": "ABR"
+            }
+
+        return rate_request
+
     def _rate_shipment(self, order, skip_errors=False):
         status = self._process_reply(
             url="%s/api/rating/v1/Rate" % self.url,
@@ -473,7 +509,13 @@ class UpsRequest(object):
 
     def rate_shipment(self, order):
         status = self._rate_shipment(order)
-        return status["RateResponse"]["RatedShipment"]["TotalCharges"]
+        rated_shipment = status["RateResponse"]["RatedShipment"]
+
+        # Use negotiated rates if available and enabled
+        if self.negotiated_rates and "NegotiatedRateCharges" in rated_shipment:
+            return rated_shipment["NegotiatedRateCharges"]["TotalCharge"]
+
+        return rated_shipment["TotalCharges"]
 
     def _prepare_shipping_label(self, carrier_tracking_ref):
         return {
