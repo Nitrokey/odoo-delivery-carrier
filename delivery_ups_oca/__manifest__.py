@@ -19,6 +19,9 @@
         "delivery_state",
         "stock_picking_declared_value",
     ],
+    "external_dependencies": {
+        "python": ["Pillow"],
+    },
     "data": [
         "security/ir.model.access.csv",
         "data/product_packaging_data.xml",

@@ -6,6 +6,9 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
 import base64
+import io
+import PIL.PdfImagePlugin
+from PIL import Image
 
 from odoo import _, fields, models
 from odoo.exceptions import UserError
@@ -23,8 +26,8 @@ class DeliveryCarrier(models.Model):
         },
     )
     ups_file_format = fields.Selection(
-        selection=[("GIF", "GIF"), ("ZPL", "ZPL"), ("EPL", "EPL"), ("SPL", "SPL")],
-        default="GIF",
+        selection=[("PDF", "PDF"), ("GIF", "GIF"), ("ZPL", "ZPL"), ("EPL", "EPL"), ("SPL", "SPL")],
+        default="PDF",
         string="File format",
     )
     ups_shipper_number = fields.Char(string="Shipper number")
@@ -158,6 +161,20 @@ class DeliveryCarrier(models.Model):
     def ups_send_shipping(self, pickings):
         return [self.ups_create_shipping(p) for p in pickings]
 
+    def _convert_gif_to_pdf(self, gif_data):
+        """Convert GIF image data to PDF format with proper 6x4" page size
+        :param gif_data: base64 encoded GIF data
+        :returns: base64 encoded PDF data
+        """
+        # Decode base64 GIF data
+        img_decoded = base64.b64decode(gif_data)
+        image_string = io.BytesIO(img_decoded)
+        im = Image.open(image_string)
+        label_result = io.BytesIO()
+        # Set resolution to 236 DPI (standard for 6x4" UPS labels)
+        im.save(label_result, 'PDF', resolution=236.0)
+        return base64.b64encode(label_result.getvalue()).decode('utf-8')
+
     def _prepare_ups_label_attachment(self, picking, values):
         return {
             "name": values["name"],
@@ -171,21 +188,39 @@ class DeliveryCarrier(models.Model):
         val_list = []
         for label in labels:
             format_code = label["format_code"].upper()
-            attachment_name = "%s-%s.%s" % (
+            label_data = label["datas"]
+            file_extension = format_code
+            
+            # Convert GIF to PDF only when PDF format is explicitly selected
+            if self.ups_file_format == "PDF" and format_code == "GIF":
+                label_data = self._convert_gif_to_pdf(label_data)
+                file_extension = "PDF"
+            
+            attachment_name = "label-%s.%s" % (
                 label["tracking_ref"],
-                format_code,
-                format_code,
+                file_extension.lower(),
             )
             val_list.append(
                 self._prepare_ups_label_attachment(
                     picking,
                     {
                         "name": attachment_name,
-                        "datas": label["datas"],
+                        "datas": label_data,
                     },
                 )
             )
-        return self.env["ir.attachment"].create(val_list)
+        attachments = self.env["ir.attachment"].create(val_list)
+        
+        # Post attachments to picking's message thread as internal note
+        # (doesn't notify followers)
+        if attachments:
+            picking.message_post(
+                body=_("UPS Shipping Label(s) Generated"),
+                attachment_ids=attachments.ids,
+                subtype_xmlid='mail.mt_note',
+            )
+        
+        return attachments
 
     def ups_get_label(self, carrier_tracking_ref):
         """Generate label for picking
