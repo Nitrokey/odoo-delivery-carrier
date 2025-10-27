@@ -16,7 +16,7 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 
-class UpsRequest(object):
+class UpsRequest():
     def __init__(self, carrier):
         self.carrier = carrier
         self.default_packaging_id = self.carrier.ups_default_packaging_id

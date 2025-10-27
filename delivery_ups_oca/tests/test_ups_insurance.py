@@ -4,10 +4,10 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
 from odoo.tests import Form, common
-from ..models.ups_request import UpsRequest
+from ..ups_request import UpsRequest
 
 _module_ns = "odoo.addons.delivery_ups_oca"
-_provider_class = _module_ns + ".models.ups_request.UpsRequest"
+_provider_class = _module_ns + ".ups_request.UpsRequest"
 
 
 class TestDeliveryUpsInsurance(common.TransactionCase):

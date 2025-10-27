@@ -13,7 +13,7 @@ from PIL import Image
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 
-from .ups_request import UpsRequest
+from ..ups_request import UpsRequest
 
 
 class DeliveryCarrier(models.Model):
@@ -204,12 +204,12 @@ class DeliveryCarrier(models.Model):
             format_code = label["format_code"].upper()
             label_data = label["datas"]
             file_extension = format_code
-            
+
             # Convert GIF to PDF only when PDF format is explicitly selected
             if self.ups_file_format == "PDF" and format_code == "GIF":
                 label_data = self._convert_gif_to_pdf(label_data)
                 file_extension = "PDF"
-            
+
             attachment_name = "label-%s.%s" % (
                 label["tracking_ref"],
                 file_extension.lower(),
@@ -224,7 +224,7 @@ class DeliveryCarrier(models.Model):
                 )
             )
         attachments = self.env["ir.attachment"].create(val_list)
-        
+
         # Post attachments to picking's message thread as internal note
         # (doesn't notify followers)
         if attachments:
@@ -233,7 +233,7 @@ class DeliveryCarrier(models.Model):
                 attachment_ids=attachments.ids,
                 subtype_xmlid='mail.mt_note',
             )
-        
+
         return attachments
 
     def ups_get_label(self, carrier_tracking_ref):

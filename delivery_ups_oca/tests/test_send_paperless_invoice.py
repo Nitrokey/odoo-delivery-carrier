@@ -6,7 +6,7 @@ from odoo.tests.common import TransactionCase
 
 
 _module_ns = "odoo.addons.delivery_ups_oca"
-_provider_class = _module_ns + ".models.ups_request.UpsRequest"
+_provider_class = _module_ns + ".ups_request.UpsRequest"
 
 
 class TestSendPaperlessInvoice(TransactionCase):
