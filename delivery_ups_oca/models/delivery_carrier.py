@@ -185,9 +185,7 @@ class DeliveryCarrier(models.Model):
         return self._create_ups_label(picking, response)
 
     def ups_get_tracking_link(self, picking):
-        return "https://ups.com/WebTracking/track?trackingNumber=%s" % (
-            picking.carrier_tracking_ref
-        )
+        return f"https://ups.com/WebTracking/track?trackingNumber={picking.carrier_tracking_ref}"
 
     def ups_cancel_shipment(self, pickings):
         ups_request = UpsRequest(self)

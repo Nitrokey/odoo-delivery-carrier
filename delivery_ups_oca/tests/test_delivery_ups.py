@@ -38,8 +38,8 @@ class TestDeliveryUpsBase(common.TransactionCase):
         cls.company = cls.env.ref("base.main_company")
         cls.company.partner_id.write(
             {
-                "phone": "+%s976123456" % cls.company.country_id.phone_code,
-                "vat": "%s09915370R" % cls.company.country_id.code,
+                "phone": f"+{cls.company.country_id.phone_code}976123456",
+                "vat": f"{cls.company.country_id.code}09915370R",
             }
         )
         cls.partner = cls.env["res.partner"].create(
@@ -56,7 +56,12 @@ class TestDeliveryUpsBase(common.TransactionCase):
             }
         )
         cls.product = cls.env["product.product"].create(
-            {"name": "Test product", "type": "product", "weight": 10}
+            {
+                "name": "Test product",
+                "type": "consu",
+                "is_storable": True,
+                "weight": 10,
+            }
         )
         cls.sale = cls._create_sale_order(cls)
 
