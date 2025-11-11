@@ -7,6 +7,7 @@ import base64
 from unittest import mock
 
 from odoo.tests import Form, common
+from odoo.exceptions import UserError
 from ..models.ups_request import UpsRequest
 
 _module_ns = "odoo.addons.delivery_ups_oca"
@@ -15,9 +16,9 @@ _provider_class = _module_ns + ".models.ups_request.UpsRequest"
 
 class TestDeliveryUpsBase(common.TransactionCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(self):
         super().setUpClass()
-        product_shipping_cost = cls.env["product.product"].create(
+        product_shipping_cost = self.env["product.product"].create(
             {
                 "type": "service",
                 "name": "Shipping costs",
@@ -25,13 +26,13 @@ class TestDeliveryUpsBase(common.TransactionCase):
                 "list_price": 100,
             }
         )
-        cls.carrier = cls.env["delivery.carrier"].create(
+        self.carrier = self.env["delivery.carrier"].create(
             {
                 "name": "UPS",
                 "delivery_type": "ups",
                 "product_id": product_shipping_cost.id,
                 "price_method": "fixed",
-                "ups_default_packaging_id": cls.env.ref(
+                "ups_default_packaging_id": self.env.ref(
                     "delivery_ups_oca.product_packaging_ups_02"
                 ).id,
                 "ups_package_dimension_code": "IN",
@@ -42,29 +43,34 @@ class TestDeliveryUpsBase(common.TransactionCase):
                 "ups_client_secret": "dummy",
                 "ups_file_format": "GIF",
                 "declared_amount_percentage": 80,
+                "country_groups": [(6, 0, [
+                    self.env.ref('base.europe').id,
+                    self.env.ref('base.south_america').id,
+                    self.env.ref('base.sepa_zone').id,
+                    self.env.ref('base.gulf_cooperation_council').id])],
             }
         )
-        cls.company = cls.env.ref("base.main_company")
-        cls.company.partner_id.write(
+        self.company = self.env.ref("base.main_company")
+        self.company.partner_id.write(
             {
-                "phone": f"+{cls.company.country_id.phone_code}976123456",
-                "vat": f"{cls.company.country_id.code}09915370R",
+                "phone": f"+{self.company.country_id.phone_code}976123456",
+                "vat": f"{self.company.country_id.code}09915370R",
             }
         )
-        cls.partner = cls.env["res.partner"].create(
+        self.partner = self.env["res.partner"].create(
             {
                 "name": "Test partner",
-                "country_id": cls.company.country_id.id,
-                "phone": cls.company.partner_id.phone,
+                "country_id": self.company.country_id.id,
+                "phone": self.company.partner_id.phone,
                 "email": "test@odoo.com",
-                "street": cls.company.partner_id.street,
-                "city": cls.company.partner_id.city,
-                "zip": cls.company.partner_id.zip,
-                "state_id": cls.company.partner_id.state_id.id,
-                "vat": cls.company.partner_id.vat,
+                "street": self.company.partner_id.street,
+                "city": self.company.partner_id.city,
+                "zip": self.company.partner_id.zip,
+                "state_id": self.company.partner_id.state_id.id,
+                "vat": self.company.partner_id.vat,
             }
         )
-        cls.product = cls.env["product.product"].create(
+        self.product = self.env["product.product"].create(
             {
                 "name": "Test product",
                 "type": "consu",
@@ -72,8 +78,8 @@ class TestDeliveryUpsBase(common.TransactionCase):
                 "weight": 10,
             }
         )
-        cls.sale = cls._create_sale_order(cls)
-        cls.picking = cls.sale.picking_ids[0]
+        self.sale = self._create_sale_order(self)
+        self.picking = self.sale.picking_ids[0]
 
     def _create_sale_order(self):
         order_form = Form(self.env["sale.order"])
@@ -94,10 +100,10 @@ class TestDeliveryUpsBase(common.TransactionCase):
 
 class TestDeliveryUps(TestDeliveryUpsBase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(self):
         super().setUpClass()
-        cls.picking = cls.sale.picking_ids[0]
-        cls.picking.move_ids.quantity = 10
+        self.picking = self.sale.picking_ids[0]
+        self.picking.move_ids.quantity = 10
 
     def test_order_ups_rate_shipment(self):
         with mock.patch(
@@ -197,7 +203,8 @@ class TestDeliveryUps(TestDeliveryUpsBase):
         pack_action_ctx = pack_action['context']
         pack_wiz = self.env['choose.delivery.package'].with_context(
             pack_action_ctx).create(
-            {"delivery_package_type_id": self.carrier.ups_default_packaging_id.id})
+            {
+                "delivery_package_type_id": self.carrier.ups_default_packaging_id.id})
         pack_wiz.action_put_in_pack()
 
         self.carrier.write({"ups_use_packages_from_picking": True})
@@ -219,9 +226,62 @@ class TestDeliveryUps(TestDeliveryUpsBase):
         vals = ups_request._prepare_create_shipping(self.picking)
         shipment = vals["ShipmentRequest"]["Shipment"]
         self.assertIn("ShipmentServiceOptions", shipment)
-        service_option = shipment["ShipmentServiceOptions"][0]
+        service_option = shipment["ShipmentServiceOptions"]
         self.assertIn("COD", service_option)
         self.assertEqual(
             service_option["COD"]["CODAmount"]["MonetaryValue"],
             "11.9"
         )
+
+
+class TestSendPaperlessInvoice(TestDeliveryUpsBase):
+
+    def setUp(self):
+        super().setUp()
+        self.picking = self.sale.picking_ids[0]
+        self.picking.move_ids.quantity = 10
+        self.picking.action_assign()
+
+        # Create a dummy invoice PDF
+        self.dummy_pdf = base64.b64encode(b"%PDF-1.4\n%Fake PDF Content\n%%EOF")
+
+        self.invoice = self.sale._create_invoices()
+        self.invoice.action_post()
+
+    def test_prepare_paperless_invoice_provider_adds_missing_docs(self):
+        result = self.carrier.prepare_paperless_invoice_provider(self.picking)
+        doc_types = [doc['UserCreatedFormDocumentType'] for doc in result]
+        self.assertIn("002", doc_types, "Invoice should be added if missing")
+        self.assertIn("010", doc_types, "Packing list should be added if missing")
+
+    def test_ups_paperless_invoice_raises_if_document_id_exists(self):
+        """Should raise UserError when no document data is passed"""
+        self.picking.document_id = 'DUMMY_ID'
+        with self.assertRaises(UserError):
+            self.carrier.ups_paperless_invoice_provider(self.picking)
+
+    def test_prepare_paperless_invoice_raises_if_invoice_missing(self):
+        self.picking.sale_id.invoice_ids = False
+        with self.assertRaises(UserError):
+            self.carrier.ups_paperless_invoice_provider(self.picking)
+
+    def test_send_paperless_invoice_data(self):
+        self.picking.ups_paperless_auto_send = True
+        self.picking.ups_paperless_document = [
+            (0, 0, {
+                "file_name": 'Paperless Invoice - 001',
+                "ups_document_type": '003',
+                "ups_paperless_file": self.dummy_pdf,
+            }),
+            (0, 0, {
+                "file_name": 'Paperless Invoice - 002',
+                "ups_document_type": '013',
+                "ups_paperless_file": self.dummy_pdf,
+            })
+        ]
+        with mock.patch(
+            _provider_class + ".send_paperless_invoice",
+            return_value='DOC123456789'
+        ):
+            result = self.carrier.ups_paperless_invoice_provider(self.picking)
+            self.assertIsNotNone(result)
