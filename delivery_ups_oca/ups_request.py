@@ -48,10 +48,10 @@ class UpsRequest():
                 raise UserError(msg)
 
     def _send_request(
-        self, url, json=None, data=None, headers=None, method="post", auth=None
+        self, url, json=None, data=None, headers=None, method="post", auth=None, timeout=None
     ):
         return getattr(requests, method)(
-            url, data=data, json=json, headers=headers, auth=auth
+            url, data=data, json=json, headers=headers, auth=auth, timeout=timeout
         )
 
     def _get_new_token(self):
@@ -105,6 +105,7 @@ class UpsRequest():
         data=None,
         method="post",
         headers_extra=None,
+        timeout=10,
     ):
         if (
             not self.token
@@ -131,7 +132,7 @@ class UpsRequest():
             body_data,
         )
 
-        status = self._send_request(url, json, data, headers, method)
+        status = self._send_request(url, json, data, headers, method, timeout=timeout)
 
         # Generate a new token if unauthorized
         if status.status_code == 401:
@@ -150,7 +151,7 @@ class UpsRequest():
                 body_data,
             )
 
-            status = self._send_request(url, json, data, headers, method)
+            status = self._send_request(url, json, data, headers, method, timeout=timeout)
 
         status_json = status.json()
 
@@ -640,68 +641,34 @@ class UpsRequest():
             }
         }
 
-        headers = {
+        headers_extra = {
             "ShipperNumber": self.shipper_number,
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Authorization": "Bearer {}".format(self.token),
         }
 
         url = "%s/api/paperlessdocuments/v1/upload" % self.url
 
-        # Log request details
-        # Create a copy of the request data to mask sensitive information
-        debug_request = json.loads(json.dumps(request_data))
-        for doc in debug_request.get("UploadRequest", {}).get(
-            "UserCreatedForm", []
-        ):
-            if "UserCreatedFormFile" in doc:
-                doc["UserCreatedFormFile"] = "***MASKED***"
-        _logger.debug(
-            "UPS Paperless Invoice Request: URL=%s, Headers=%s, Data=%s",
-            url,
-            headers,
-            debug_request,
+        # Use _process_reply for consistent auth handling and retry logic
+        status_json = self._process_reply(
+            url=url,
+            json=request_data,
+            headers_extra=headers_extra,
+            timeout=10,
         )
 
-        try:
-            response = requests.request(
-                "POST",
-                url,
-                headers=headers,
-                data=json.dumps(request_data),
-                timeout=10,
-            )
+        # Use standard error handling
+        self._raise_for_status(status_json, skip_errors=False)
 
-            # Log response
-            _logger.debug(
-                "UPS Paperless Invoice Response: Status=%s, Content=%s",
-                response.status_code,
-                response.text,
-            )
+        # Extract document ID from response
+        document_id = (
+            status_json.get("UploadResponse", {})
+            .get("FormsHistoryDocumentID", {})
+            .get("DocumentID")
+        )
 
-            if response.status_code in [200, 201]:
-                invoice_response = response.json()
-                document_id = (
-                    invoice_response.get("UploadResponse")
-                    and invoice_response.get("UploadResponse").get(
-                        "FormsHistoryDocumentID"
-                    )
-                    and invoice_response.get("UploadResponse")
-                    .get("FormsHistoryDocumentID")
-                    .get("DocumentID")
-                )
-                picking.document_id = document_id
-                return document_id
-            else:
-                errors_message = "Paperless Invoice: {}".format(
-                    json.loads(response.text).get("response")
-                    and json.loads(response.text).get("response").get("errors")
-                    and json.loads(response.text)
-                    .get("response")
-                    .get("errors")[0]
-                    .get("message")
-                )
-                raise UserError(errors_message) from None
-        except Exception as e:
-            raise UserError(str(e)) from e
+        if not document_id:
+            raise UserError(_("No document ID returned by UPS"))
+
+        picking.document_id = document_id
+        return document_id
