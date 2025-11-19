@@ -4,6 +4,7 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
 import datetime
+import json
 import logging
 
 import requests
@@ -62,17 +63,38 @@ class UpsRequest:
         url = f"{self.url}/security/v1/oauth/token"
         headers = {"x-merchant-id": self.client_id}
         data = {"grant_type": "client_credentials"}
+        # Log token request
+
+        _logger.debug(
+            "UPS Token Request: URL=%s, Headers=%s, Data=%s",
+            url, headers, data
+        )
+
         status = self._send_request(
             url, data=data, headers=headers, auth=(self.client_id, self.client_secret)
         )
-        status = status.json()
-        self._raise_for_status(status, False)
-        token = status.get("access_token")
+        status_json = status.json()
+
+        # Log token response
+        # Mask the token in logs for security
+        debug_response = (
+            status_json.copy() if isinstance(status_json, dict) else status_json
+        )
+        if isinstance(debug_response, dict) and "access_token" in debug_response:
+            debug_response["access_token"] = "***MASKED***"
+        _logger.debug(
+            "UPS Token Response: Status=%s, Content=%s",
+            status.status_code,
+            debug_response,
+        )
+
+        self._raise_for_status(status_json, False)
+        token = status_json.get("access_token")
         self.token = token
         self.carrier.ups_token = token
         self.carrier.ups_token_expiration_date = (
             datetime.datetime.now()
-            + datetime.timedelta(seconds=int(status.get("expires_in")))
+            + datetime.timedelta(seconds=int(status_json.get("expires_in")))
         )
 
     def _process_reply(
@@ -95,16 +117,50 @@ class UpsRequest:
         }
         if headers_extra:
             headers = {**headers, **headers_extra}
+
+        # Log request details
+        # Only include relevant parameters in the log
+        # Token requests use data parameter, all other requests use json parameter
+        body_data = json and json or data
+        _logger.debug(
+            "UPS Request: URL=%s, Method=%s, Headers=%s, Body=%s",
+            url,
+            method,
+            headers,
+            body_data,
+        )
+
         status = self._send_request(url, json, data, headers, method)
         # Generate a new token
         if status.status_code == 401:
             self._get_new_token()
+            # Update headers with the new token
+            headers["Authorization"] = "Bearer {}".format(self.token)
+
+            # Log the retry request
+            # Only include relevant parameters in the log
+            _logger.debug(
+                "UPS Retry Request with new token: URL=%s, Method=%s, "
+                "Headers=%s, Body=%s",
+                url,
+                method,
+                headers,
+                body_data,
+            )
+
             status = self._send_request(url, json, data, headers, method)
-        status = status.json()
+        status_json = status.json()
+
+        # Log response
+        _logger.debug(
+            "UPS Response: Status=%s, Content=%s",
+            status.status_code, status_json
+        )
+
         ups_last_request = f"URL: {self.url}\nData: {data}"
         self.carrier.log_xml(ups_last_request, "ups_last_request")
-        self.carrier.log_xml(status or "", "ups_last_response")
-        return status
+        self.carrier.log_xml(status_json or "", "ups_last_response")
+        return status_json
 
     def _quant_package_data_from_picking(self, package, picking, is_package=False):
         NumOfPieces = picking.number_of_packages
