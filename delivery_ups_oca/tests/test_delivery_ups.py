@@ -7,6 +7,7 @@ import base64
 from unittest import mock
 
 from odoo.tests import Form, common
+from odoo.exceptions import UserError
 from ..models.ups_request import UpsRequest
 
 _module_ns = "odoo.addons.delivery_ups_oca"
@@ -42,6 +43,11 @@ class TestDeliveryUpsBase(common.TransactionCase):
                 "ups_client_secret": "dummy",
                 "ups_file_format": "GIF",
                 "declared_amount_percentage": 80,
+                "country_groups": [(6, 0, [
+                    cls.env.ref('base.europe').id,
+                    cls.env.ref('base.south_america').id,
+                    cls.env.ref('base.sepa_zone').id,
+                    cls.env.ref('base.gulf_cooperation_council').id])],
             }
         )
         cls.company = cls.env.ref("base.main_company")
@@ -197,7 +203,8 @@ class TestDeliveryUps(TestDeliveryUpsBase):
         pack_action_ctx = pack_action['context']
         pack_wiz = self.env['choose.delivery.package'].with_context(
             pack_action_ctx).create(
-            {"delivery_package_type_id": self.carrier.ups_default_packaging_id.id})
+            {
+                "delivery_package_type_id": self.carrier.ups_default_packaging_id.id})
         pack_wiz.action_put_in_pack()
 
         self.carrier.write({"ups_use_packages_from_picking": True})
@@ -219,9 +226,62 @@ class TestDeliveryUps(TestDeliveryUpsBase):
         vals = ups_request._prepare_create_shipping(self.picking)
         shipment = vals["ShipmentRequest"]["Shipment"]
         self.assertIn("ShipmentServiceOptions", shipment)
-        service_option = shipment["ShipmentServiceOptions"][0]
+        service_option = shipment["ShipmentServiceOptions"]
         self.assertIn("COD", service_option)
         self.assertEqual(
             service_option["COD"]["CODAmount"]["MonetaryValue"],
             "11.9"
         )
+
+
+class TestSendPaperlessInvoice(TestDeliveryUpsBase):
+
+    def setUp(self):
+        super().setUp()
+        self.picking = self.sale.picking_ids[0]
+        self.picking.move_ids.quantity = 10
+        self.picking.action_assign()
+
+        # Create a dummy invoice PDF
+        self.dummy_pdf = base64.b64encode(b"%PDF-1.4\n%Fake PDF Content\n%%EOF")
+
+        self.invoice = self.sale._create_invoices()
+        self.invoice.action_post()
+
+    def test_prepare_paperless_invoice_provider_adds_missing_docs(self):
+        result = self.carrier.prepare_paperless_invoice_provider(self.picking)
+        doc_types = [doc['UserCreatedFormDocumentType'] for doc in result]
+        self.assertIn("002", doc_types, "Invoice should be added if missing")
+        self.assertIn("010", doc_types, "Packing list should be added if missing")
+
+    def test_ups_paperless_invoice_raises_if_document_id_exists(self):
+        """Should raise UserError when no document data is passed"""
+        self.picking.document_id = 'DUMMY_ID'
+        with self.assertRaises(UserError):
+            self.carrier.ups_paperless_invoice_provider(self.picking)
+
+    def test_prepare_paperless_invoice_raises_if_invoice_missing(self):
+        self.picking.sale_id.invoice_ids = False
+        with self.assertRaises(UserError):
+            self.carrier.ups_paperless_invoice_provider(self.picking)
+
+    def test_send_paperless_invoice_data(self):
+        self.picking.ups_paperless_auto_send = True
+        self.picking.ups_paperless_document = [
+            (0, 0, {
+                "file_name": 'Paperless Invoice - 001',
+                "ups_document_type": '003',
+                "ups_paperless_file": self.dummy_pdf,
+            }),
+            (0, 0, {
+                "file_name": 'Paperless Invoice - 002',
+                "ups_document_type": '013',
+                "ups_paperless_file": self.dummy_pdf,
+            })
+        ]
+        with mock.patch(
+            _provider_class + ".send_paperless_invoice",
+            return_value='DOC123456789'
+        ):
+            result = self.carrier.ups_paperless_invoice_provider(self.picking)
+            self.assertIsNotNone(result)
