@@ -17,6 +17,7 @@
         "delivery_package_number",
         "delivery_price_method",
         "delivery_state",
+        "base_customs_territory",
     ],
     "data": [
         "data/stock_package_type_data.xml",
