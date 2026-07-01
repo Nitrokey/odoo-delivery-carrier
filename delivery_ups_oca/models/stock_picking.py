@@ -86,6 +86,7 @@ class StockPicking(models.Model):
             and self.partner_id
             and self.partner_id.country_id
             in self.carrier_id.ups_paperless_country_group_ids.mapped("country_ids")
+            and not self.partner_id.state_id.outside_customs_territory
         )
 
     @api.onchange("carrier_id", "partner_id")
