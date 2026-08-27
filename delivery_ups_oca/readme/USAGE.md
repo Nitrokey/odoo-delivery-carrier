@@ -31,3 +31,9 @@ ship:
   displayed, but the validation process will continue. You can also
   manually trigger the paperless invoice sending using the "Generate
   Paperless Invoice" button on the picking form.
+
+When UPS Global Checkout is configured and the destination is eligible:
+
+- On rating an order (from the sales order or the eCommerce checkout), a
+  separate "UPS Duties, Taxes & Fees" line is added below the
+  shipping line.
