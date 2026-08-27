@@ -12,6 +12,11 @@ To configure this module, you need to:
     Select the `ups` delivery type and check the "Cash on Delivery"
     checkbox under the "UPS" tab. It is required to select the "UPS COD
     Funds Code" when the "Cash on Delivery" option is selected.
+5.  For paperless invoice functionality, configure the "Automatically send
+    paperless invoice" field by selecting the country groups for which you
+    want to automatically enable paperless invoices. When a delivery is
+    created with a destination country in one of these groups, the system
+    will automatically prepare and send the required documentation to UPS.
 
 **NOTE** You need to add an APP from <https://developer.ups.com/> for
 using the webservice.
