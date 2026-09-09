@@ -16,7 +16,7 @@ cp -r delivery_ups_oca ~/Nitrokey/Odoo/initos-odoo-modules-18.0/odoo/parts/OCA/d
 #docker compose run --rm odoo odoo test parts/OCA/social/mail_gateway_zulip
 
 docker compose \
---file ~/Nitrokey/Odoo/initos-odoo-modules-15.0-demodata/docker-compose.yaml \
---project-directory ~/Nitrokey/Odoo/initos-odoo-modules-15.0-demodata \
+--file ~/Nitrokey/Odoo/initos-odoo-modules-18.0/docker-compose.yaml \
+--project-directory ~/Nitrokey/Odoo/initos-odoo-modules-18.0 \
 run --rm odoo \
 odoo test parts/OCA/delivery-carrier/delivery_ups_oca
