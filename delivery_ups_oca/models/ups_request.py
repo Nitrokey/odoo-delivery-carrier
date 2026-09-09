@@ -7,6 +7,7 @@ import ast
 import datetime
 import json
 import logging
+import uuid
 from urllib.parse import urlencode
 
 import requests
@@ -381,24 +382,25 @@ class UpsRequest:
                 "FormType": "07",
                 "UserCreatedForm": {"DocumentID": document_id},
             }
-        self._add_global_checkout_to_shipment(vals, picking)
+        self._add_ups_ddp_to_shipment(vals, picking)
         return vals
 
-    def _add_global_checkout_to_shipment(self, vals, picking):
-        """Attach the UPS Global Checkout Quote ID and DDP billing to a shipment.
-
-        When the picking carries a Global Checkout Quote ID, the Quote ID is sent
-        in the dedicated ``Shipment.QuoteID`` field (linking the guaranteed
-        duties/taxes) and a second shipment charge of type ``02`` (Duties and
-        Taxes) is billed to the shipper so UPS clears customs as Delivered Duty
-        Paid (DDP).
-        """
+    def _add_ups_ddp_to_shipment(self, vals, picking):
+        """Attach Delivered Duty Paid (DDP) billing to a shipment for Global
+        Checkout (guaranteed, with Quote ID) or the Landed Cost estimate (when
+        DDP is enabled on the carrier, without a Quote ID)."""
         order = picking.sale_id
         quote_id = picking.ups_landed_cost_quote_identifier or (
             order.ups_landed_cost_quote_identifier if order else False
         )
-        # If the order no longer has a landed cost line, the customer is not being
-        # charged duties, so do not apply Global Checkout DDP to the shipment.
+        carrier = picking.carrier_id
+        ddp_estimate = bool(
+            order
+            and carrier.ups_landed_cost_estimate_ddp
+            and order.order_line.filtered("is_ups_landed_cost_estimate")
+        )
+        # If the order no longer has a Global Checkout landed cost line, the
+        # customer is not being charged those duties, so do not apply DDP.
         if order and quote_id and not order.order_line.filtered("is_ups_landed_cost"):
             picking.message_post(
                 body=_(
@@ -409,13 +411,14 @@ class UpsRequest:
             )
             picking.ups_landed_cost_quote_identifier = False
             quote_id = False
-        if not quote_id:
+        if not quote_id and not ddp_estimate:
             return vals
-        # Persist onto the picking when it was quoted after the picking existed.
-        if picking.ups_landed_cost_quote_identifier != quote_id:
-            picking.ups_landed_cost_quote_identifier = quote_id
         shipment = vals["ShipmentRequest"]["Shipment"]
-        shipment["QuoteID"] = quote_id
+        if quote_id:
+            # Persist onto the picking when it was quoted after the picking existed.
+            if picking.ups_landed_cost_quote_identifier != quote_id:
+                picking.ups_landed_cost_quote_identifier = quote_id
+            shipment["QuoteID"] = quote_id
         # Bill duties and taxes to the shipper (DDP) in addition to transportation.
         shipment_charge = shipment["PaymentInformation"]["ShipmentCharge"]
         if isinstance(shipment_charge, dict):
@@ -427,13 +430,13 @@ class UpsRequest:
             }
         )
         shipment["PaymentInformation"]["ShipmentCharge"] = shipment_charge
-        self._add_global_checkout_international_forms(shipment, picking)
+        self._add_ups_customs_international_forms(shipment, picking)
         return vals
 
-    def _add_global_checkout_international_forms(self, shipment, picking):
+    def _add_ups_customs_international_forms(self, shipment, picking):
         """Add the UPS-generated customs invoice (InternationalForms) with the
-        commodity data that must match the Global Checkout quote (quantity,
-        value, origin country, currency and part number).
+        commodity data that must match the landed cost quote (quantity, value,
+        origin country, currency and part number).
 
         Also guard the destination country/state to match the quote, since UPS
         requires ShipTo Country/State to be identical to the quote parties.
@@ -441,7 +444,7 @@ class UpsRequest:
         order = picking.sale_id
         if not order:
             return
-        self._check_global_checkout_destination(order, picking)
+        self._check_ups_ddp_destination(order, picking)
         commodities = self._gc_commodities(order)
         if not commodities:
             return
@@ -478,9 +481,9 @@ class UpsRequest:
             "Product": products,
         }
 
-    def _check_global_checkout_destination(self, order, picking):
+    def _check_ups_ddp_destination(self, order, picking):
         """Ensure the shipment destination matches the quote destination, as UPS
-        requires ShipTo Country/State to be identical to the Global Checkout
+        requires ShipTo Country/State to be identical to the landed cost
         quote."""
         quote_partner = order.partner_shipping_id
         ship_partner = picking.partner_id
@@ -490,7 +493,7 @@ class UpsRequest:
             raise UserError(
                 _(
                     "The delivery address does not match the address used for the "
-                    "UPS Global Checkout quote. Re-calculate the shipping rate "
+                    "UPS landed cost quote. Re-calculate the shipping rate "
                     "before shipping."
                 )
             )
@@ -701,6 +704,7 @@ class UpsRequest:
             and not x.display_type
             and not x.is_delivery
             and not x.is_ups_landed_cost
+            and not x.is_ups_landed_cost_estimate
         ):
             product = line.product_id
             commodities.append(
@@ -734,6 +738,99 @@ class UpsRequest:
                 item["productId"] = commodity["product_id"]
             items.append(item)
         return items
+
+    # -------------------------------------------------------------------------
+    # UPS Landed Cost Quote (estimate) - REST API
+    # -------------------------------------------------------------------------
+    def _prepare_landed_cost_estimate(self, order, transportation_cost):
+        """Build the JSON body for the UPS Landed Cost Quote REST API.
+
+        This is a non-binding duties/taxes estimate. It reuses the same
+        commodity helpers as Global Checkout so the values stay consistent.
+        """
+        currency = order.currency_id.name
+        partner_from = order.warehouse_id.partner_id or order.company_id.partner_id
+        shipment_items = []
+        for index, commodity in enumerate(self._gc_commodities(order), start=1):
+            item = {
+                "commodityId": commodity["product_id"] or str(index),
+                "priceEach": commodity["amount"],
+                "quantity": commodity["quantity"],
+                "UOM": "Each",
+                "commodityCurrencyCode": commodity["currency"],
+                "description": commodity["description"],
+            }
+            if commodity["hs_code"]:
+                item["hsCode"] = commodity["hs_code"]
+            if commodity["origin_country"]:
+                item["originCountryCode"] = commodity["origin_country"]
+            shipment_items.append(item)
+        trans_id = (
+            f"ODOO{order.id}{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        )[:50]
+        return {
+            "currencyCode": currency,
+            "transID": trans_id,
+            "alversion": 1,
+            "shipment": {
+                "id": order.name,
+                "importCountryCode": self._get_country_code(
+                    order.partner_shipping_id
+                ),
+                "exportCountryCode": self._get_country_code(partner_from),
+                "shipDate": datetime.date.today().strftime("%Y-%m-%d"),
+                "transportCost": transportation_cost,
+                "shipmentType": "Sale",
+                "shipmentItems": shipment_items,
+            },
+        }
+
+    def landed_cost_quote_estimate(self, order, transportation_cost):
+        """Run the UPS Landed Cost Quote REST API for an order.
+
+        Returns a dict with ``amount`` (grand total of duties, taxes and fees),
+        ``duties``, ``vat``, ``brokerage`` and ``currency``.
+        """
+        trans_id = uuid.uuid4().hex[:32]
+        status = self._process_reply(
+            url=f"{self.url}/api/landedcost/v1/quotes",
+            json=self._prepare_landed_cost_estimate(order, transportation_cost),
+            headers_extra={
+                "transId": trans_id,
+                "transactionSrc": (self.transaction_src or "Odoo")[:512],
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        # Surface any error the same way as the other REST calls.
+        self._raise_for_status(status, skip_errors=False)
+        error = status.get("error")
+        if error:
+            errors = error if isinstance(error, list) else [error]
+            msg = _("UPS Landed Cost error: {}").format(
+                "\n".join(
+                    "{code} {message}".format(
+                        code=err.get("code", ""),
+                        message=err.get("message") or err.get("description", ""),
+                    )
+                    for err in errors
+                    if isinstance(err, dict)
+                )
+            )
+            raise UserError(msg)
+        shipment = status.get("shipment")
+        if not shipment:
+            raise UserError(
+                _("UPS Landed Cost returned no estimate for this order.")
+            )
+        return {
+            "amount": shipment.get("grandTotal") or 0.0,
+            "duties": shipment.get("totalDuties") or 0.0,
+            "vat": shipment.get("totalVAT") or 0.0,
+            "brokerage": shipment.get("totalBrokerageFees") or 0.0,
+            "currency": shipment.get("currencyCode") or order.currency_id.name,
+            "identifier": status.get("transID") or "",
+        }
 
     def _gc_carton_inputs(self, order):
         carton = {
