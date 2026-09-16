@@ -19,9 +19,9 @@ To configure this module, you need to:
     When set, delivery orders using this carrier pre-fill a declared
     value for shipping insurance, computed as this percentage of the
     taxed value of the shipped goods (taken from the sale order lines).
-7.  For paperless invoice functionality, configure the "Country group to
-    auto-send paperless invoice" field by selecting the country groups for
-    which you want to automatically enable paperless invoices. When a
+7.  For paperless documents functionality, configure the "Country group to
+    auto-send paperless documents" field by selecting the country groups for
+    which you want to automatically enable paperless documents. When a
     delivery is created with a destination country in one of these groups,
     the system will automatically prepare and send the required
     documentation to UPS.
