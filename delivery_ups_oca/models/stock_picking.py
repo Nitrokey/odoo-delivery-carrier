@@ -2,7 +2,12 @@
 # Copyright 2025 Nitrokey GmbH
 # Copyright 2026 Nitrokey GmbH
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
+import ast
+import logging
+
 from odoo import _, api, fields, models
+
+_logger = logging.getLogger(__name__)
 
 
 class StockPicking(models.Model):
@@ -60,7 +65,10 @@ class StockPicking(models.Model):
             )
 
     ups_document_identifier = fields.Char(
-        "DocumentID", help="Forms History Document ID", readonly=True, copy=False
+        "DocumentID",
+        help="Comma separated Forms History Document IDs, one per uploaded form",
+        readonly=True,
+        copy=False,
     )
     ups_paperless_document_ids = fields.One2many(
         "ups.paperless.document", "ups_stock_picking_id", string="Paperless Document"
@@ -136,6 +144,20 @@ class StockPicking(models.Model):
 
     def generate_paperless_invoice(self):
         return self.carrier_id.send_ups_paperless_invoice(self)
+
+    def _get_ups_document_ids(self):
+        self.ensure_one()
+        identifier = (self.ups_document_identifier or "").strip()
+        if not identifier:
+            return []
+        if identifier.startswith("["):
+            try:
+                identifier = ",".join(ast.literal_eval(identifier))
+            except (ValueError, SyntaxError, TypeError):
+                _logger.warning(
+                    "Could not parse UPS document identifier %s", identifier
+                )
+        return [doc_id.strip() for doc_id in identifier.split(",") if doc_id.strip()]
 
     def _get_ups_paperless_auto_send(self):
         self.ensure_one()
