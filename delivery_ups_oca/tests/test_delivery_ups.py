@@ -1585,6 +1585,11 @@ class TestSendPaperlessDocuments(TestDeliveryUpsBase):
         self.assertEqual(result, ["DOC123"])
         self.assertEqual(self.picking.ups_document_identifier, "DOC123")
         self.assertIn("/api/paperlessdocuments/v2/upload", mock_send.call_args[0][0])
+        upload_request = json.loads(mock_send.call_args[0][2])["UploadRequest"]
+        self.assertEqual(
+            upload_request["Request"]["TransactionReference"]["CustomerContext"],
+            self.picking.name,
+        )
 
     def test_send_paperless_documents_multiple_documents(self):
         """v2 always returns an array; every document ID is kept."""

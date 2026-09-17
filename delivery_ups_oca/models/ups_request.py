@@ -1085,7 +1085,7 @@ mutation OdooLandedCost(
 
         request_data = {
             "UploadRequest": {
-                "Request": {"TransactionReference": {"CustomerContext": ""}},
+                "Request": {"TransactionReference": {"CustomerContext": picking.name}},
                 "ShipperNumber": self.shipper_number,
                 "UserCreatedForm": paperless_document_data,
             }
