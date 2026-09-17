@@ -6,6 +6,7 @@ import ast
 import logging
 
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -193,11 +194,16 @@ class StockPicking(models.Model):
         return pickings
 
     def button_validate(self):
-        """Override to trigger paperless documents upload when validating a picking"""
+        """Override to trigger paperless documents upload when validating a picking
+
+        A failing upload blocks the validation of the whole batch.
+        """
         res = super().button_validate()
         for picking in self:
+            # The validation may have returned a wizard instead of validating
             if (
-                picking.carrier_id
+                picking.state == "done"
+                and picking.carrier_id
                 and picking.carrier_id.delivery_type == "ups"
                 and picking.ups_paperless_auto_send
                 and not picking.ups_document_identifier
@@ -206,10 +212,10 @@ class StockPicking(models.Model):
                 try:
                     picking.carrier_id.send_ups_paperless_documents(picking)
                 except Exception as e:
-                    # Log the error but don't block the validation
-                    self.env.user.notify_warning(
-                        message=f"Failed to send paperless documents: {str(e)}",
-                        title="UPS Paperless Documents",
-                        sticky=True,
+                    message = _(
+                        "Failed to send UPS Paperless Documents: %s",
+                        str(e) or type(e).__name__,
                     )
+                    _logger.error(message)
+                    raise UserError(message) from e
         return res
