@@ -1064,15 +1064,19 @@ mutation OdooLandedCost(
         return [doc_id.strip() for doc_id in document_id if doc_id and doc_id.strip()]
 
     def _log_paperless_alerts(self, upload_response):
+        """Log the alerts of an upload response and return them as a text block"""
         alerts = (upload_response.get("Response") or {}).get("Alert") or []
         if isinstance(alerts, dict):
             alerts = [alerts]
+        messages = []
         for alert in alerts:
             _logger.info(
                 "UPS Paperless Documents alert: %s %s",
                 alert.get("Code"),
                 alert.get("Description"),
             )
+            messages.append(f"{alert.get('Code')} {alert.get('Description')}")
+        return "\n".join(messages)
 
     def send_paperless_documents(self, picking, paperless_document_data):
         """Send paperless documents to UPS"""
@@ -1119,21 +1123,41 @@ mutation OdooLandedCost(
                 response.text,
             )
             self.carrier.log_xml(response.text or "", "ups_last_response")
-            if response.status_code in [200, 201]:
-                response_payload = response.json()
-                upload_response = response_payload.get("UploadResponse") or {}
-                self._log_paperless_alerts(upload_response)
+            # UPS answers server errors with an HTML page instead of JSON, so the
+            # payload is parsed defensively before looking at the status code.
+            try:
+                payload = json.loads(response.text)
+            except (ValueError, TypeError):
+                payload = None
+            if response.status_code in [200, 201] and payload is not None:
+                upload_response = payload.get("UploadResponse") or {}
+                alerts = self._log_paperless_alerts(upload_response)
                 forms_history = upload_response.get("FormsHistoryDocumentID") or {}
                 document_ids = self._normalize_document_ids(
                     forms_history.get("DocumentID")
                 )
+                if not document_ids:
+                    _logger.error(
+                        "UPS Paperless Documents upload returned HTTP %s without any "
+                        "DocumentID: %s",
+                        response.status_code,
+                        response.text,
+                    )
+                    raise UserError(
+                        picking.env._(
+                            "UPS accepted the Paperless Documents upload but did "
+                            "not return any Document ID.%s"
+                        )
+                        % (f"\n{alerts}" if alerts else "")
+                    ) from None
                 picking.ups_document_identifier = ",".join(document_ids)
                 return document_ids
-            try:
-                error_payload = json.loads(response.text)
-            except (ValueError, TypeError):
-                error_payload = None
-            if error_payload is None:
+            _logger.error(
+                "UPS Paperless Documents upload failed: Status=%s, Content=%s",
+                response.status_code,
+                response.text,
+            )
+            if payload is None:
                 raise UserError(
                     picking.env._(
                         "UPS Paperless Documents upload failed (HTTP %s). "
@@ -1144,7 +1168,7 @@ mutation OdooLandedCost(
                     )
                     % response.status_code
                 ) from None
-            errors = (error_payload.get("response") or {}).get("errors")
+            errors = (payload.get("response") or {}).get("errors")
             error_message = errors[0].get("message") if errors else response.text
             raise UserError(
                 picking.env._("Paperless Documents: %s") % error_message
@@ -1152,4 +1176,10 @@ mutation OdooLandedCost(
         except UserError:
             raise
         except Exception as e:
-            raise UserError(str(e)) from e
+            # Connection errors and timeouts otherwise surface as an empty or
+            # cryptic message, so log the traceback and keep the exception type.
+            _logger.exception("UPS Paperless Documents upload failed")
+            raise UserError(
+                picking.env._("UPS Paperless Documents upload failed: %s")
+                % (str(e) or type(e).__name__)
+            ) from e

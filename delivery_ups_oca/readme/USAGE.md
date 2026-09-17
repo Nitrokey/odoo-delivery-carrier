@@ -27,10 +27,9 @@ ship:
     documents (like certificates of origin, export licenses, etc.) to the
     picking using the "UPS Paperless Documents" tab
 
-  If the automatic sending fails, a warning notification will be
-  displayed, but the validation process will continue. You can also
-  manually trigger the paperless documents sending using the "Generate
-  Paperless Documents" button on the picking form.
+  If the sending fails, an error is displayed and the picking is not
+  validated. You can also manually trigger the sending using the
+  "Generate Paperless Documents" button on the picking form.
 
 When UPS Global Checkout is configured and the destination is eligible:
 
