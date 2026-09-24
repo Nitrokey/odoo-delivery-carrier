@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 import requests
 
 from odoo.exceptions import UserError
+from odoo.tools import float_compare
 
 _logger = logging.getLogger(__name__)
 UPS_TAX_IDENTIFICATION_NUMBER_MAX_LENGTH = 15
@@ -735,6 +736,10 @@ class UpsRequest:
             and not x.is_ups_landed_cost
             and not x.is_ups_landed_cost_estimate
             and x.product_id.type != "service"
+            and float_compare(
+                x.product_uom_qty, 0.0, precision_rounding=x.product_uom.rounding
+            )
+            > 0
         ):
             product = line.product_id
             commodities.append(
@@ -751,7 +756,8 @@ class UpsRequest:
         return commodities
 
     def _gc_item_inputs(self, order):
-        """Build the item inputs (one per sale order line with a product)."""
+        """Build the item inputs (one per sale order line with a product and a
+        positive quantity)."""
         items = []
         for commodity in self._gc_commodities(order):
             item = {

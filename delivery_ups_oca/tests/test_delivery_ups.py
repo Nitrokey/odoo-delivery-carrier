@@ -2389,6 +2389,26 @@ class TestUpsGlobalCheckout(TestDeliveryUpsBase):
             "Physical product must still be included",
         )
 
+    def test_gc_commodities_excludes_zero_quantity_lines(self):
+        removed_product = self.env["product.product"].create(
+            {"name": "Removed product", "type": "consu", "is_storable": True}
+        )
+        line = self.env["sale.order.line"].create(
+            {
+                "order_id": self.sale.id,
+                "product_id": removed_product.id,
+                "product_uom_qty": 1,
+                "price_unit": 50.0,
+            }
+        )
+        line.product_uom_qty = 0
+        ups_request = UpsRequest(self.carrier)
+        commodities = ups_request._gc_commodities(self.sale)
+        self.assertEqual([c["description"] for c in commodities], [self.product.name])
+        self.assertEqual(commodities[0]["quantity"], 10)
+        items = ups_request._gc_item_inputs(self.sale)
+        self.assertEqual([i["description"] for i in items], [self.product.name])
+
     def test_gc_commodities_product_id_falls_back_to_barcode(self):
         self.product.default_code = False
         self.product.barcode = "1234567890123"
