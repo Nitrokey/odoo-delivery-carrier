@@ -483,7 +483,7 @@ class UpsRequest:
         products = []
         for commodity in commodities:
             product = {
-                "Description": commodity["description"],
+                "Description": commodity["description"][:35],
                 "Unit": {
                     "Number": str(commodity["quantity"]),
                     "Value": str(commodity["amount"]),
@@ -742,9 +742,10 @@ class UpsRequest:
             > 0
         ):
             product = line.product_id
+            product_en = product.with_context(lang="en_US")
             commodities.append(
                 {
-                    "description": (product.name or line.name or "")[:255],
+                    "description": (product_en.name or line.name or "")[:255],
                     "quantity": int(line.product_uom_qty) or 1,
                     "amount": order.currency_id.round(line.price_unit),
                     "currency": currency,
