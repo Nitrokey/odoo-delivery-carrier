@@ -1777,10 +1777,14 @@ class TestSendPaperlessDocuments(TestDeliveryUpsBase):
         ups_request = UpsRequest(self.carrier)
         vals = ups_request._prepare_create_shipping(self.picking)
         service_options = vals["ShipmentRequest"]["Shipment"]["ShipmentServiceOptions"]
-        self.assertEqual(
-            service_options["InternationalForms"]["UserCreatedForm"]["DocumentID"],
-            ["DOC123"],
-        )
+        forms = service_options["InternationalForms"]
+        self.assertEqual(forms["FormType"], ["07"])
+        self.assertEqual(forms["UserCreatedForm"]["DocumentID"], ["DOC123"])
+        # UPS requires Product, with only Description (an array) mandatory
+        self.assertTrue(forms["Product"])
+        for product in forms["Product"]:
+            self.assertIsInstance(product["Description"], list)
+            self.assertLessEqual(len(product["Description"][0]), 35)
 
     def test_prepare_create_shipping_with_cod_and_international_forms(self):
         """COD and paperless documents can be combined on the same shipment."""
@@ -2123,6 +2127,22 @@ class TestUpsGlobalCheckout(TestDeliveryUpsBase):
             }
         )
 
+    def test_prepare_shipping_ddp_keeps_paperless_document_ids(self):
+        picking = self.sale.picking_ids[0]
+        picking.ups_landed_cost_quote_identifier = self.quote["quote_id"]
+        picking.ups_document_identifier = "DOC1,DOC2"
+        self._add_landed_cost_line(self.sale)
+        picking.move_ids.quantity = 10
+        picking.number_of_packages = 1
+        vals = UpsRequest(self.carrier)._prepare_create_shipping(picking)
+        forms = vals["ShipmentRequest"]["Shipment"]["ShipmentServiceOptions"][
+            "InternationalForms"
+        ]
+        self.assertEqual(forms["FormType"], ["01", "07"])
+        self.assertEqual(forms["UserCreatedForm"]["DocumentID"], ["DOC1", "DOC2"])
+        self.assertIsInstance(forms["Product"][0]["Description"], list)
+        self.assertIn("Unit", forms["Product"][0])
+
     def test_prepare_shipping_includes_quote_id_and_ddp(self):
         picking = self.sale.picking_ids[0]
         picking.ups_landed_cost_quote_identifier = self.quote["quote_id"]
@@ -2136,7 +2156,7 @@ class TestUpsGlobalCheckout(TestDeliveryUpsBase):
         charges = shipment["PaymentInformation"]["ShipmentCharge"]
         self.assertTrue(any(c.get("Type") == "02" for c in charges))
         forms = shipment["ShipmentServiceOptions"]["InternationalForms"]
-        self.assertEqual(forms["FormType"], "01")
+        self.assertEqual(forms["FormType"], ["01"])
         self.assertEqual(forms["ReasonForExport"], "SALE")
         self.assertTrue(forms["InvoiceNumber"])
         self.assertEqual(forms["CurrencyCode"], self.sale.currency_id.name)
@@ -2736,7 +2756,7 @@ class TestUpsLandedCostEstimate(TestDeliveryUpsBase):
         charges = shipment["PaymentInformation"]["ShipmentCharge"]
         self.assertTrue(any(c.get("Type") == "02" for c in charges))
         forms = shipment["ShipmentServiceOptions"]["InternationalForms"]
-        self.assertEqual(forms["FormType"], "01")
+        self.assertEqual(forms["FormType"], ["01"])
         self.assertTrue(forms["Product"])
 
     def test_ddp_on_without_estimate_line_no_ddp(self):

@@ -410,11 +410,24 @@ class UpsRequest:
         if document_ids:
             shipment = vals["ShipmentRequest"]["Shipment"]
             shipment.setdefault("ShipmentServiceOptions", {})["InternationalForms"] = {
-                "FormType": "07",
+                "FormType": ["07"],
                 "UserCreatedForm": {"DocumentID": document_ids},
+                "Product": self._get_ups_paperless_products(picking),
             }
         self._add_ups_ddp_to_shipment(vals, picking)
         return vals
+
+    def _get_ups_paperless_products(self, picking):
+        """Product descriptions for the InternationalForms container. UPS requires
+        the Product element, but with only Description mandatory, as the invoice
+        data itself comes from the uploaded user created forms (FormType 07)."""
+        products = []
+        for move in picking.move_ids.filtered(
+            lambda m: m.product_id and m.product_id.type != "service"
+        ):
+            product = move.product_id.with_context(lang="en_US")
+            products.append({"Description": [(product.name or move.name or "")[:35]]})
+        return products or [{"Description": [(picking.name or "")[:35]]}]
 
     def _add_ups_ddp_to_shipment(self, vals, picking):
         """Attach Delivered Duty Paid (DDP) billing to a shipment for Global
@@ -483,7 +496,7 @@ class UpsRequest:
         products = []
         for commodity in commodities:
             product = {
-                "Description": commodity["description"][:35],
+                "Description": [commodity["description"][:35]],
                 "Unit": {
                     "Number": str(commodity["quantity"]),
                     "Value": str(commodity["amount"]),
@@ -499,8 +512,15 @@ class UpsRequest:
             products.append(product)
         sold_to = self._partner_to_shipping_data(picking.partner_id)
         service_options = shipment.setdefault("ShipmentServiceOptions", {})
+        # Merge into any InternationalForms already set (e.g. the paperless
+        # UserCreatedForm, FormType 07) instead of overwriting it.
+        existing = service_options.get("InternationalForms", {})
+        form_types = ["01"] + [
+            form_type for form_type in existing.get("FormType", []) if form_type != "01"
+        ]
         service_options["InternationalForms"] = {
-            "FormType": "01",
+            **existing,
+            "FormType": form_types,
             "InvoiceDate": datetime.date.today().strftime("%Y%m%d"),
             "InvoiceNumber": (order.name or picking.name)[:35],
             "ReasonForExport": (
