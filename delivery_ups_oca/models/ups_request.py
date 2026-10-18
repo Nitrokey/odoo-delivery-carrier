@@ -489,6 +489,15 @@ class UpsRequest:
         if not order:
             return
         self._check_ups_ddp_destination(order, picking)
+        service_options = shipment.setdefault("ShipmentServiceOptions", {})
+        existing = service_options.get("InternationalForms", {})
+        # Global Checkout always needs the UPS-generated invoice. Otherwise an
+        # uploaded commercial invoice replaces it.
+        use_uploaded_invoice = bool(
+            "QuoteID" not in shipment
+            and existing
+            and "002" in picking.ups_paperless_document_ids.mapped("ups_document_type")
+        )
         commodities = self._gc_commodities(order)
         if not commodities:
             return
@@ -510,11 +519,21 @@ class UpsRequest:
             if commodity["hs_code"]:
                 product["CommodityCode"] = commodity["hs_code"]
             products.append(product)
+        if use_uploaded_invoice:
+            # Keep FormType 07 only, but still pass the commodity data, which
+            # UPS needs to calculate duties and taxes for DDP.
+            service_options["InternationalForms"] = {
+                **existing,
+                "ReasonForExport": (
+                    picking.ups_global_checkout_reason_for_export or "SALE"
+                ),
+                "CurrencyCode": currency,
+                "Product": products,
+            }
+            return
         sold_to = self._partner_to_shipping_data(picking.partner_id)
-        service_options = shipment.setdefault("ShipmentServiceOptions", {})
         # Merge into any InternationalForms already set (e.g. the paperless
         # UserCreatedForm, FormType 07) instead of overwriting it.
-        existing = service_options.get("InternationalForms", {})
         form_types = ["01"] + [
             form_type for form_type in existing.get("FormType", []) if form_type != "01"
         ]

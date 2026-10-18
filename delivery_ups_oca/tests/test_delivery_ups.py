@@ -2143,6 +2143,54 @@ class TestUpsGlobalCheckout(TestDeliveryUpsBase):
         self.assertIsInstance(forms["Product"][0]["Description"], list)
         self.assertIn("Unit", forms["Product"][0])
 
+    def _prepare_ddp_paperless_forms(self, global_checkout, with_invoice=True):
+        picking = self.sale.picking_ids[0]
+        picking.ups_document_identifier = "DOC1"
+        if with_invoice:
+            self.env["ups.paperless.document"].create(
+                {
+                    "ups_paperless_file": "dGVzdA==",
+                    "file_name": "invoice.pdf",
+                    "ups_document_type": "002",
+                    "ups_stock_picking_id": picking.id,
+                }
+            )
+        if global_checkout:
+            picking.ups_landed_cost_quote_identifier = self.quote["quote_id"]
+            self._add_landed_cost_line(self.sale)
+        else:
+            self.carrier.ups_landed_cost_estimate_ddp = True
+            self.sale.ups_landed_cost_estimate_amount = 42.0
+            self._add_estimate_line(self.sale)
+        picking.move_ids.quantity = 10
+        picking.number_of_packages = 1
+        vals = UpsRequest(self.carrier)._prepare_create_shipping(picking)
+        return vals["ShipmentRequest"]["Shipment"]["ShipmentServiceOptions"][
+            "InternationalForms"
+        ]
+
+    def test_prepare_shipping_global_checkout_keeps_ups_invoice(self):
+        forms = self._prepare_ddp_paperless_forms(global_checkout=True)
+        self.assertEqual(forms["FormType"], ["01", "07"])
+        self.assertIn("InvoiceNumber", forms)
+
+    def test_prepare_shipping_estimate_uploaded_invoice_skips_ups_invoice(self):
+        forms = self._prepare_ddp_paperless_forms(global_checkout=False)
+        self.assertEqual(forms["FormType"], ["07"])
+        self.assertEqual(forms["UserCreatedForm"]["DocumentID"], ["DOC1"])
+        self.assertNotIn("InvoiceNumber", forms)
+        # Commodity data is still sent for DDP duty calculation.
+        self.assertEqual(forms["CurrencyCode"], self.sale.currency_id.name)
+        self.assertIn("Number", forms["Product"][0]["Unit"])
+        self.assertIn("Value", forms["Product"][0]["Unit"])
+
+    def test_prepare_shipping_estimate_without_invoice_keeps_ups_invoice(self):
+        forms = self._prepare_ddp_paperless_forms(
+            global_checkout=False, with_invoice=False
+        )
+        self.assertEqual(forms["FormType"], ["01", "07"])
+        self.assertIn("InvoiceNumber", forms)
+
     def test_prepare_shipping_includes_quote_id_and_ddp(self):
         picking = self.sale.picking_ids[0]
         picking.ups_landed_cost_quote_identifier = self.quote["quote_id"]
