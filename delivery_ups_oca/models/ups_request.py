@@ -490,11 +490,10 @@ class UpsRequest:
         self._check_ups_ddp_destination(order, picking)
         service_options = shipment.setdefault("ShipmentServiceOptions", {})
         existing = service_options.get("InternationalForms", {})
-        # Global Checkout always needs the UPS-generated invoice. Otherwise an
-        # uploaded commercial invoice replaces it.
+        # An uploaded commercial invoice replaces the UPS-generated one, also for
+        # Global Checkout, to avoid two commercial invoices at customs.
         use_uploaded_invoice = bool(
-            "QuoteID" not in shipment
-            and existing
+            existing
             and "002" in picking.ups_paperless_document_ids.mapped("ups_document_type")
         )
         commodities = self._gc_commodities(order)

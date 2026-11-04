@@ -2168,8 +2168,24 @@ class TestUpsGlobalCheckout(TestDeliveryUpsBase):
             "InternationalForms"
         ]
 
-    def test_prepare_shipping_global_checkout_keeps_ups_invoice(self):
+    def test_prepare_shipping_global_checkout_uploaded_invoice_skips_ups_invoice(
+        self,
+    ):
         forms = self._prepare_ddp_paperless_forms(global_checkout=True)
+        self.assertEqual(forms["FormType"], ["07"])
+        self.assertEqual(forms["UserCreatedForm"]["DocumentID"], ["DOC1"])
+        self.assertNotIn("InvoiceNumber", forms)
+        # Commodity data matching the quote is still sent.
+        self.assertEqual(forms["CurrencyCode"], self.sale.currency_id.name)
+        self.assertIn("Number", forms["Product"][0]["Unit"])
+        self.assertIn("Value", forms["Product"][0]["Unit"])
+
+    def test_prepare_shipping_global_checkout_without_invoice_keeps_ups_invoice(
+        self,
+    ):
+        forms = self._prepare_ddp_paperless_forms(
+            global_checkout=True, with_invoice=False
+        )
         self.assertEqual(forms["FormType"], ["01", "07"])
         self.assertIn("InvoiceNumber", forms)
 
